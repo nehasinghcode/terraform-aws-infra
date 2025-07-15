@@ -1,22 +1,20 @@
 import sys
-from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from pyspark.context import SparkContext
 from pyspark.sql.functions import col, avg, count
-from pyspark.sql import SparkSession
+from awsglue.dynamicframe import DynamicFrame
 
-# Initialize contexts
+# Initialize Spark and Glue
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 
-# Get parameters from Lambda event via Glue Job arguments
-args = getResolvedOptions(sys.argv, ['RAW_S3_PATH'])
+# Get path passed from Lambda
+args = getResolvedOptions(sys.argv, ['raw_s3_path'])
+raw_s3_path = args['raw_s3_path']
 
-raw_s3_path = args['RAW_S3_PATH']
-
-# Read CSV from S3 with proper options
+# Read CSV
 df = spark.read.option("header", "true") \
                .option("inferSchema", "true") \
                .option("quote", "\"") \
@@ -24,39 +22,61 @@ df = spark.read.option("header", "true") \
                .option("escape", "\"") \
                .csv(raw_s3_path)
 
-# Strip and lowercase column names
+# Clean column names
 df = df.toDF(*[c.strip().lower() for c in df.columns])
 
-# Print columns for debugging
-print("Sanitized Columns:", df.columns)
-
-# Filter records where age > 30 and balance > 0
+# Filter
 df_filtered = df.filter((col('age') > 30) & (col('balance') > 0))
 
-# Perform aggregation: average balance and count by job and marital
+# Aggregate
 df_agg = df_filtered.groupBy('job', 'marital') \
-                    .agg(
-                        avg('balance').alias('avg_balance'),
-                        count('*').alias('record_count')
-                    )
+    .agg(
+        avg('balance').alias('avg_balance'),
+        count('*').alias('record_count')
+    )
 
-# Write to Parquet partitioned by job and marital
+# Convert to DynamicFrame
+dyf = DynamicFrame.fromDF(df_agg, glueContext, "dyf")
+
+# Output details
 output_path = "s3://finco-dev-curated-csv-data-us-east-1-001/cleaned_data/"
-df_agg.write \
-     .mode("overwrite") \
-     .partitionBy("job", "marital") \
-     .format("parquet") \
-     .save(output_path)
+database_name = "bank_marketing_curated"
+table_name = "bank_data_cleaned"
 
-# Register output in Glue Catalog
-glueContext.purge_table("bank_marketing_curated", "bank_data_cleaned", options={"retention": 0})
-glueContext.create_dynamic_frame.from_options(
+# Write to S3 and register in Glue Catalog
+glueContext.write_dynamic_frame.from_options(
+    frame=dyf,
     connection_type="s3",
-    connection_options={"paths": [output_path]},
+    connection_options={
+        "path": output_path,
+        "partitionKeys": ["job", "marital"]
+    },
     format="parquet"
-).toDF().write \
- .format("parquet") \
- .mode("overwrite") \
- .option("path", output_path) \
- .option("partitionKeys", ["job", "marital"]) \
- .saveAsTable("bank_marketing_curated.bank_data_cleaned")
+)
+
+# Register in Glue Catalog
+glueContext.catalog_client.create_table(
+    DatabaseName=database_name,
+    TableInput={
+        'Name': table_name,
+        'StorageDescriptor': {
+            'Columns': [
+                {'Name': 'avg_balance', 'Type': 'double'},
+                {'Name': 'record_count', 'Type': 'bigint'}
+            ],
+            'Location': output_path,
+            'InputFormat': 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat',
+            'OutputFormat': 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat',
+            'SerdeInfo': {
+                'SerializationLibrary': 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe',
+                'Parameters': {'serialization.format': '1'}
+            }
+        },
+        'PartitionKeys': [
+            {'Name': 'job', 'Type': 'string'},
+            {'Name': 'marital', 'Type': 'string'}
+        ],
+        'TableType': 'EXTERNAL_TABLE',
+        'Parameters': {'classification': 'parquet'}
+    }
+)
