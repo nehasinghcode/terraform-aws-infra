@@ -1,16 +1,16 @@
 resource "aws_lambda_function" "trigger_glue_job" {
   function_name = "trigger-glue-job-on-upload"
-  role          = aws_iam_role.lambda_glue_trigger_role.arn  # Defined in another file
+  role          = aws_iam_role.lambda_glue_trigger_role.arn
   handler       = "glue_trigger.lambda_handler"
   runtime       = "python3.9"
   timeout       = 30
 
   filename         = "${path.module}/lambda/glue_trigger.zip"
-  source_code_hash = filebase64sha256("${path.module}/lambda/glue_trigger.zip")
+  source_code_hash = filebase64sha256("${path.module}/lambda_script/glue_trigger.zip")
 
   environment {
     variables = {
-      GLUE_JOB_NAME = "bank_csv_to_parquet_job"  # Replace with actual Glue job name
+      GLUE_JOB_NAME = "bank_csv_to_parquet_job"
     }
   }
 }
