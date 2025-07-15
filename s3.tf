@@ -141,6 +141,6 @@ resource "aws_s3_object" "glue_script" {
   bucket = aws_s3_bucket.glue_script_bucket.id
   key    = "scripts/bank_csv_to_parquet.py"
   source = "${path.module}/glue-scripts/bank_csv_to_parquet.py"
-  etag   = filemd5("${path.module}/glue-scripts/bank_csv_to_parquet.py")
+  etag   = filemd5("${path.module}/glue-script/bank_csv_to_parquet.py")
 }
 
