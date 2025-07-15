@@ -1,69 +1,74 @@
 import sys
+import boto3
+import os
+from awsglue.context import GlueContext
 from awsglue.transforms import *
 from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
-from awsglue.context import GlueContext
-from awsglue.job import Job
+from pyspark.sql.functions import col, when
+from awsglue.dynamicframe import DynamicFrame
 
 # Get parameters
 args = getResolvedOptions(sys.argv, ['JOB_NAME', 'raw_s3_path'])
+raw_path = args['raw_s3_path']
+output_path = "s3://finco-dev-curated-csv-data-us-east-1-001/curated_data/"
+manifest_path = "s3://finco-dev-curated-csv-data-us-east-1-001/processed_files/"
 
-raw_s3_path = args['raw_s3_path']
-output_path = "s3://finco-dev-curated-csv-data-us-east-1-001/bank_data_parquet/"
+print(f"Input path: {raw_path}")
+print(f"Output path: {output_path}")
+print(f"Manifest path: {manifest_path}")
 
-# Initialize Glue and Spark
+# Parse input file key
+filename = raw_path.split("/")[-1]
+manifest_key = f"{manifest_path}{filename}.manifest"
+
+# Check if file was already processed
+s3 = boto3.client('s3')
+bucket = manifest_path.replace("s3://", "").split("/")[0]
+manifest_obj_key = "/".join(manifest_key.split("/")[1:])
+
+try:
+    s3.head_object(Bucket=bucket, Key=manifest_obj_key)
+    print(f"File {filename} already processed. Skipping.")
+    sys.exit(0)
+except:
+    print(f"File {filename} is new. Proceeding...")
+
+# Spark & Glue context
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
-job = Job(glueContext)
-job.init(args['JOB_NAME'], args)
 
-# ✅ Read CSV with semicolon delimiter
-df = spark.read.option("header", True)\
-               .option("delimiter", ";")\
-               .option("quote", "\"")\
-               .csv(raw_s3_path)
+# Read CSV with header and semicolon delimiter
+df = spark.read.option("header", True).option("sep", ";").csv(raw_path)
+print("Data read successfully")
+df.printSchema()
 
-# ✅ Basic cleaning: Remove rows with null age and cast types
-df_cleaned = df.dropna(subset=["age"])\
-    .withColumn("age", df["age"].cast("int"))\
-    .withColumn("balance", df["balance"].cast("int"))\
-    .withColumn("duration", df["duration"].cast("int"))
+# Basic transformations
+df = df.withColumn("default", when(col("default") == "yes", 1).otherwise(0)) \
+       .withColumn("housing", when(col("housing") == "yes", 1).otherwise(0)) \
+       .withColumn("loan", when(col("loan") == "yes", 1).otherwise(0))
 
-# ✅ Example aggregation: average balance by job and marital status
-df_agg = df_cleaned.groupBy("job", "marital")\
-                   .avg("balance")\
-                   .withColumnRenamed("avg(balance)", "avg_balance")
+# Add transformation: average balance by month (optional example)
+agg_df = df.groupBy("month").agg({"balance": "avg"}).withColumnRenamed("avg(balance)", "avg_balance")
+agg_df.show()
 
-# ✅ Join aggregated data back for reporting
-df_final = df_cleaned.join(df_agg, on=["job", "marital"], how="left")
+# Convert to DynamicFrame
+dyf = DynamicFrame.fromDF(df, glueContext, "dyf")
 
-# ✅ Write to Parquet and partition by job
-df_final.write.mode("overwrite")\
-    .partitionBy("job")\
-    .parquet(output_path)
-
-# ✅ Register in Glue Catalog
-glueContext.create_dynamic_frame_from_options(
+# Write to Parquet in partitioned structure
+glueContext.write_dynamic_frame.from_options(
+    frame=dyf,
     connection_type="s3",
-    connection_options={"paths": [output_path]},
-    format="parquet"
-).toDF().createOrReplaceTempView("bank_view")
-
-# ✅ Create or update Glue Catalog Table
-datasink = glueContext.write_dynamic_frame.from_options(
-    frame=glueContext.create_dynamic_frame.from_catalog(
-        database="bank_marketing_curated",
-        table_name="bank_data_parquet",
-        transformation_ctx="datasource0"
-    ),
-    connection_type="s3",
+    format="parquet",
     connection_options={
         "path": output_path,
-        "partitionKeys": ["job"]
-    },
-    format="parquet",
-    transformation_ctx="datasink"
+        "partitionKeys": ["month"],
+        "mode": "overwrite"
+    }
 )
+print("Write completed")
 
-job.commit()
+# Mark as processed by uploading empty manifest file
+s3.put_object(Bucket=bucket, Key=manifest_obj_key, Body='')
+print(f"Manifest file created for {filename}")
