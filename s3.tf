@@ -118,3 +118,29 @@ resource "aws_s3_bucket_lifecycle_configuration" "curated_lifecycle" {
     }
   }
 }
+resource "aws_s3_bucket" "glue_script_bucket" {
+  bucket        = "finco-dev-glue-scripts-us-east-1-001"
+  force_destroy = true
+
+  tags = {
+    Name        = "GlueScriptBucket"
+    Environment = "Dev"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "glue_script_block" {
+  bucket                  = aws_s3_bucket.glue_script_bucket.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+
+resource "aws_s3_object" "glue_script" {
+  bucket = aws_s3_bucket.glue_script_bucket.id
+  key    = "scripts/bank_csv_to_parquet.py"
+  source = "${path.module}/glue_scripts/bank_csv_to_parquet.py"
+  etag   = filemd5("${path.module}/glue_scripts/bank_csv_to_parquet.py")
+}
+
