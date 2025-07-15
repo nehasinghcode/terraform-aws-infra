@@ -2,6 +2,7 @@ resource "aws_glue_catalog_database" "curated" {
   name        = var.glue_database_name
   description = "Curated zone for transformed bank marketing data"
 }
+
 resource "aws_glue_catalog_table" "bank_data_parquet" {
   name          = "bank_data_parquet"
   database_name = aws_glue_catalog_database.curated.name
@@ -21,71 +22,71 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
 
     stored_as_sub_directories = false
 
-    column {
+    columns {
       name = "age"
       type = "int"
     }
-    column {
+    columns {
       name = "job"
       type = "string"
     }
-    column {
+    columns {
       name = "marital"
       type = "string"
     }
-    column {
+    columns {
       name = "education"
       type = "string"
     }
-    column {
+    columns {
       name = "default"
       type = "string"
     }
-    column {
+    columns {
       name = "balance"
       type = "int"
     }
-    column {
+    columns {
       name = "housing"
       type = "string"
     }
-    column {
+    columns {
       name = "loan"
       type = "string"
     }
-    column {
+    columns {
       name = "contact"
       type = "string"
     }
-    column {
+    columns {
       name = "day"
       type = "int"
     }
-    column {
+    columns {
       name = "month"
       type = "string"
     }
-    column {
+    columns {
       name = "duration"
       type = "int"
     }
-    column {
+    columns {
       name = "campaign"
       type = "int"
     }
-    column {
+    columns {
       name = "pdays"
       type = "int"
     }
-    column {
+    columns {
       name = "previous"
       type = "int"
     }
-    column {
+    columns {
       name = "poutcome"
       type = "string"
     }
-    column {
+    columns {
       name = "y"
       type = "string"
     }
@@ -96,4 +97,3 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
     type = "string"
   }
 }
-
