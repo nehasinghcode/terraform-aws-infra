@@ -1,39 +1,82 @@
-import boto3
-import os
+import sys
+from awsglue.utils import getResolvedOptions
+from awsglue.context import GlueContext
+from pyspark.context import SparkContext
+from pyspark.sql.functions import col, avg, count
+from awsglue.dynamicframe import DynamicFrame
 
-def lambda_handler(event, context):
-    glue = boto3.client('glue')
-    
-    try:
-        # Extract bucket and object key from the S3 event
-        record = event['Records'][0]
-        bucket = record['s3']['bucket']['name']
-        key = record['s3']['object']['key']
-        raw_s3_path = f"s3://{bucket}/{key}"
-        print(f"File uploaded to: {raw_s3_path}")
-    except Exception as e:
-        print("Error extracting bucket/key:", str(e))
-        raise
+# Initialize Spark and Glue
+sc = SparkContext()
+glueContext = GlueContext(sc)
+spark = glueContext.spark_session
 
-    # Get Glue Job name from environment variable
-    glue_job_name = os.environ.get("GLUE_JOB_NAME")
-    if not glue_job_name:
-        raise ValueError("GLUE_JOB_NAME environment variable not set")
+# Get path passed from Lambda
+args = getResolvedOptions(sys.argv, ['raw_s3_path'])
+raw_s3_path = args['raw_s3_path']
 
-    try:
-        # Start Glue job with S3 path as an argument
-        response = glue.start_job_run(
-            JobName=glue_job_name,
-            Arguments={
-                "--raw_s3_path": raw_s3_path
+# Read CSV
+df = spark.read.option("header", "true") \
+               .option("inferSchema", "true") \
+               .option("quote", "\"") \
+               .option("multiLine", "true") \
+               .option("escape", "\"") \
+               .csv(raw_s3_path)
+
+# Clean column names
+df = df.toDF(*[c.strip().lower() for c in df.columns])
+
+# Filter
+df_filtered = df.filter((col('age') > 30) & (col('balance') > 0))
+
+# Aggregate
+df_agg = df_filtered.groupBy('job', 'marital') \
+    .agg(
+        avg('balance').alias('avg_balance'),
+        count('*').alias('record_count')
+    )
+
+# Convert to DynamicFrame
+dyf = DynamicFrame.fromDF(df_agg, glueContext, "dyf")
+
+# Output details
+output_path = "s3://finco-dev-curated-csv-data-us-east-1-001/cleaned_data/"
+database_name = "bank_marketing_curated"
+table_name = "bank_data_cleaned"
+
+# Write to S3 and register in Glue Catalog
+glueContext.write_dynamic_frame.from_options(
+    frame=dyf,
+    connection_type="s3",
+    connection_options={
+        "path": output_path,
+        "partitionKeys": ["job", "marital"]
+    },
+    format="parquet"
+)
+
+# Register in Glue Catalog
+glueContext.catalog_client.create_table(
+    DatabaseName=database_name,
+    TableInput={
+        'Name': table_name,
+        'StorageDescriptor': {
+            'Columns': [
+                {'Name': 'avg_balance', 'Type': 'double'},
+                {'Name': 'record_count', 'Type': 'bigint'}
+            ],
+            'Location': output_path,
+            'InputFormat': 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat',
+            'OutputFormat': 'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat',
+            'SerdeInfo': {
+                'SerializationLibrary': 'org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe',
+                'Parameters': {'serialization.format': '1'}
             }
-        )
-        print(f"Glue job started: {response['JobRunId']}")
-        return {
-            "statusCode": 200,
-            "body": f"Started Glue job {glue_job_name} for file {raw_s3_path}"
-        }
-
-    except Exception as e:
-        print("Error starting Glue job:", str(e))
-        raise
+        },
+        'PartitionKeys': [
+            {'Name': 'job', 'Type': 'string'},
+            {'Name': 'marital', 'Type': 'string'}
+        ],
+        'TableType': 'EXTERNAL_TABLE',
+        'Parameters': {'classification': 'parquet'}
+    }
+)
