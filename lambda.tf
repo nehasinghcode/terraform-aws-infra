@@ -5,7 +5,7 @@ resource "aws_lambda_function" "trigger_glue_job" {
   runtime       = "python3.9"
   timeout       = 30
 
-  filename         = "${path.module}/lambda/glue_trigger.zip"
+  filename         = "${path.module}/lambda_script/glue_trigger.zip"
   source_code_hash = filebase64sha256("${path.module}/lambda_script/glue_trigger.zip")
 
   environment {
