@@ -9,6 +9,17 @@ terraform {
   }
 }
 
+terraform {
+  backend "s3" {
+    bucket         = "finco-dev-tfstate-bucket"       # Create this S3 bucket manually
+    key            = "terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    dynamodb_table = "terraform-lock"                 # Optional for locking
+  }
+}
+
+
 provider "aws" {
   region = "us-east-1"
 }
