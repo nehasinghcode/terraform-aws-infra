@@ -1,40 +1,39 @@
 import boto3
 import os
-import json
 
 def lambda_handler(event, context):
-    glue_client = boto3.client('glue')
-    job_name = os.environ['GLUE_JOB_NAME']
-
-    print("Received event:")
-    print(json.dumps(event))
-
+    glue = boto3.client('glue')
+    
     try:
-        # Optional: extract S3 bucket & object key info from event
+        # Extract bucket and object key from the S3 event
         record = event['Records'][0]
         bucket = record['s3']['bucket']['name']
         key = record['s3']['object']['key']
+        raw_s3_path = f"s3://{bucket}/{key}"
+        print(f"File uploaded to: {raw_s3_path}")
+    except Exception as e:
+        print("Error extracting bucket/key:", str(e))
+        raise
 
-        print(f"Triggering Glue job for file: s3://{bucket}/{key}")
+    # Get Glue Job name from environment variable
+    glue_job_name = os.environ.get("GLUE_JOB_NAME")
+    if not glue_job_name:
+        raise ValueError("GLUE_JOB_NAME environment variable not set")
 
-        # Start Glue job
-        response = glue_client.start_job_run(
-            JobName=job_name,
+    try:
+        # Start Glue job with S3 path as an argument
+        response = glue.start_job_run(
+            JobName=glue_job_name,
             Arguments={
-                "--SOURCE_BUCKET": bucket,
-                "--SOURCE_KEY": key
+                "--raw_s3_path": raw_s3_path
             }
         )
-
-        print(f"Glue job started: JobRunId = {response['JobRunId']}")
+        print(f"Glue job started: {response['JobRunId']}")
         return {
-            'statusCode': 200,
-            'body': json.dumps(f"Glue job started: {response['JobRunId']}")
+            "statusCode": 200,
+            "body": f"Started Glue job {glue_job_name} for file {raw_s3_path}"
         }
 
     except Exception as e:
         print("Error starting Glue job:", str(e))
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f"Error: {str(e)}")
-        }
+        raise
