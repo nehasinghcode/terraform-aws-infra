@@ -101,9 +101,8 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
 
 resource "aws_glue_catalog_table" "bank_raw_table" {
   name          = "bank_raw_data"
-  database_name = "bank_marketing_curated"
-
-  table_type = "EXTERNAL_TABLE"
+  database_name = aws_glue_catalog_database.curated.name
+  table_type    = "EXTERNAL_TABLE"
 
   storage_descriptor {
     location      = "s3://finco-dev-raw-csv-data-us-east-1-001/"
@@ -189,17 +188,12 @@ resource "aws_glue_catalog_table" "bank_raw_table" {
       name = "y"
       type = "string"
     }
-
-    compressed        = false
-    stored_as_sub_directories = false
-    skip_header_line_count    = 1
   }
 
   parameters = {
-    "classification"        = "csv"
+    "classification"         = "csv"
     "skip.header.line.count" = "1"
     "compressionType"        = "none"
     "typeOfData"             = "file"
   }
 }
-
