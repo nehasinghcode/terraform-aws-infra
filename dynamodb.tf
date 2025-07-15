@@ -1,4 +1,3 @@
-# Optional but recommended: DynamoDB table for state locking
 resource "aws_dynamodb_table" "tf_lock_table" {
   name         = "terraform-lock"
   billing_mode = "PAY_PER_REQUEST"
