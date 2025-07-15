@@ -2,7 +2,6 @@ resource "aws_glue_catalog_database" "curated" {
   name        = var.glue_database_name
   description = "Curated zone for transformed bank marketing data"
 }
-
 resource "aws_glue_catalog_table" "bank_data_parquet" {
   name          = "bank_data_parquet"
   database_name = aws_glue_catalog_database.curated.name
@@ -20,34 +19,81 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
       serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
     }
 
-    columns = [
-      { name = "age",        type = "int" },
-      { name = "job",        type = "string" },
-      { name = "marital",    type = "string" },
-      { name = "education",  type = "string" },
-      { name = "default",    type = "string" },
-      { name = "balance",    type = "int" },
-      { name = "housing",    type = "string" },
-      { name = "loan",       type = "string" },
-      { name = "contact",    type = "string" },
-      { name = "day",        type = "int" },
-      { name = "month",      type = "string" },
-      { name = "duration",   type = "int" },
-      { name = "campaign",   type = "int" },
-      { name = "pdays",      type = "int" },
-      { name = "previous",   type = "int" },
-      { name = "poutcome",   type = "string" },
-      { name = "y",          type = "string" }
-    ]
-
     stored_as_sub_directories = false
-  }
 
-  partition_keys = [
-    {
+    column {
+      name = "age"
+      type = "int"
+    }
+    column {
       name = "job"
       type = "string"
     }
-  ]
+    column {
+      name = "marital"
+      type = "string"
+    }
+    column {
+      name = "education"
+      type = "string"
+    }
+    column {
+      name = "default"
+      type = "string"
+    }
+    column {
+      name = "balance"
+      type = "int"
+    }
+    column {
+      name = "housing"
+      type = "string"
+    }
+    column {
+      name = "loan"
+      type = "string"
+    }
+    column {
+      name = "contact"
+      type = "string"
+    }
+    column {
+      name = "day"
+      type = "int"
+    }
+    column {
+      name = "month"
+      type = "string"
+    }
+    column {
+      name = "duration"
+      type = "int"
+    }
+    column {
+      name = "campaign"
+      type = "int"
+    }
+    column {
+      name = "pdays"
+      type = "int"
+    }
+    column {
+      name = "previous"
+      type = "int"
+    }
+    column {
+      name = "poutcome"
+      type = "string"
+    }
+    column {
+      name = "y"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "job"
+    type = "string"
+  }
 }
 
