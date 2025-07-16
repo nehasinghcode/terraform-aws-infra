@@ -86,7 +86,7 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
       name = "y"
       type = "string"
     }
-  }
+  
   columns {
       name = "avg_balance"
       type = "int"
@@ -101,6 +101,7 @@ columns {
     name = "month"
     type = "string"
   }
+}
 }
 
 
