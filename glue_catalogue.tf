@@ -92,17 +92,17 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
       type = "int"
     }
 
-columns {
+  columns {
       name = "avg_duration"
       type = "int"
     }
-
+}
   partition_keys {
     name = "month"
     type = "string"
   }
 }
-}
+
 
 
 resource "aws_glue_catalog_table" "bank_raw_table" {
