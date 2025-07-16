@@ -89,12 +89,12 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
   
   columns {
       name = "avg_balance"
-      type = "int"
+      type = "double"
     }
 
   columns {
       name = "avg_duration"
-      type = "int"
+      type = "double"
     }
 }
   partition_keys {
