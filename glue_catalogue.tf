@@ -87,6 +87,15 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
       type = "string"
     }
   }
+  columns {
+      name = "avg_balance"
+      type = "int"
+    }
+
+columns {
+      name = "avg_duration"
+      type = "int"
+    }
 
   partition_keys {
     name = "month"
