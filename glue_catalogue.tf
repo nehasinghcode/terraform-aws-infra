@@ -40,7 +40,7 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
     }
     columns {
       name = "default"
-      type = "string"
+      type = "int"
     }
     columns {
       name = "balance"
