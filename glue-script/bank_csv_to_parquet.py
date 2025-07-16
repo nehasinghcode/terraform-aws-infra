@@ -8,6 +8,7 @@ from pyspark.context import SparkContext
 from pyspark.sql.functions import col, when
 from awsglue.dynamicframe import DynamicFrame
 from pyspark.sql.functions import col, when, upper, avg
+from pyspark.sql.window import Window
 
 # Get parameters
 args = getResolvedOptions(sys.argv, ['JOB_NAME', 'raw_s3_path'])
@@ -62,23 +63,23 @@ try:
        .withColumn("housing", when(col("housing") == "yes", 1).otherwise(0)) \
        .withColumn("loan", when(col("loan") == "yes", 1).otherwise(0))
 
-    # Basic transformations
-    df = df.withColumn("default", when(col("default") == "yes", 1).otherwise(0)) \
-           .withColumn("housing", when(col("housing") == "yes", 1).otherwise(0)) \
-           .withColumn("loan", when(col("loan") == "yes", 1).otherwise(0))
-
     # Example aggregation
-    agg_df = df.groupBy("month", "job").agg(
-    avg("balance").alias("avg_balance"),
-    avg("duration").alias("avg_duration"))
-    agg_df.show()
+    # Define the window for aggregation
+    window_spec = Window.partitionBy("month", "job")
+    
+    # Add the aggregated columns directly into the original df
+    df = df.withColumn("avg_balance", avg("balance").over(window_spec)) \
+       .withColumn("avg_duration", avg("duration").over(window_spec))
+    df.show()
+    
+    df.printSchema()
 
     # Convert to DynamicFrame
-    agg_dyf = DynamicFrame.fromDF(agg_df, glueContext, "dyf")
+    dyf = DynamicFrame.fromDF(df, glueContext, "dyf")
 
     # Write to Parquet in partitioned structure
     glueContext.write_dynamic_frame.from_options(
-        frame=agg_dyf,
+        frame=dyf,
         connection_type="s3",
         format="parquet",
         connection_options={
