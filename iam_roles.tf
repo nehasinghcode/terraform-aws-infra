@@ -89,3 +89,23 @@ resource "aws_iam_role_policy_attachment" "glue_service_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
 }
 
+resource "aws_iam_policy" "sns_publish_policy" {
+  name = "glue-job-sns-publish-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = "sns:Publish",
+        Resource = "arn:aws:sns:us-east-1:879468317396:glue-job-notifications"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy_attachment" "glue_sns_policy_attachment" {
+  name       = "attach-sns-policy-to-glue-role"
+  roles      = [aws_iam_role.glue_service_role.name]
+  policy_arn = aws_iam_policy.sns_publish_policy.arn
+}
