@@ -63,10 +63,6 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
       type = "int"
     }
     columns {
-      name = "month"
-      type = "string"
-    }
-    columns {
       name = "duration"
       type = "int"
     }
@@ -93,7 +89,7 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
   }
 
   partition_keys {
-    name = "job"
+    name = "month"
     type = "string"
   }
 }
