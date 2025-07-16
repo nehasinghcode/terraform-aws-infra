@@ -106,6 +106,6 @@ resource "aws_iam_policy" "sns_publish_policy" {
 
 resource "aws_iam_policy_attachment" "glue_sns_policy_attachment" {
   name       = "attach-sns-policy-to-glue-role"
-  roles      = [aws_iam_role.glue_service_role.name]
+  roles      = [aws_iam_role.glue_job_role.name]
   policy_arn = aws_iam_policy.sns_publish_policy.arn
 }
