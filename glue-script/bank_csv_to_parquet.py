@@ -7,6 +7,7 @@ from awsglue.utils import getResolvedOptions
 from pyspark.context import SparkContext
 from pyspark.sql.functions import col, when
 from awsglue.dynamicframe import DynamicFrame
+from pyspark.sql.functions import col, when, upper, avg
 
 # Get parameters
 args = getResolvedOptions(sys.argv, ['JOB_NAME', 'raw_s3_path'])
@@ -39,17 +40,6 @@ try:
     bucket = manifest_path.replace("s3://", "").split("/")[0]
     manifest_obj_key = "/".join(manifest_key.split("/")[1:])
 
-    # Check if file was already processed
-    try:
-        s3.head_object(Bucket=bucket, Key=manifest_obj_key)
-        print(f"File {filename} already processed. Skipping.")
-        send_notification(
-            subject=f"Glue Job '{job_name}' Skipped",
-            message=f"The file '{filename}' was already processed and skipped."
-        )
-        sys.exit(0)
-    except:
-        print(f"File {filename} is new. Proceeding...")
 
     # Spark & Glue context
     sc = SparkContext()
@@ -60,6 +50,17 @@ try:
     df = spark.read.option("header", True).option("sep", ";").csv(raw_path)
     print("Data read successfully")
     df.printSchema()
+    
+    df = df.withColumn("age", col("age").cast("int")) \
+       .withColumn("balance", col("balance").cast("int")) \
+       .withColumn("day", col("day").cast("int")) \
+       .withColumn("duration", col("duration").cast("int")) \
+       .withColumn("campaign", col("campaign").cast("int")) \
+       .withColumn("pdays", col("pdays").cast("int")) \
+       .withColumn("previous", col("previous").cast("int")) \
+       .withColumn("default", when(col("default") == "yes", 1).otherwise(0)) \
+       .withColumn("housing", when(col("housing") == "yes", 1).otherwise(0)) \
+       .withColumn("loan", when(col("loan") == "yes", 1).otherwise(0))
 
     # Basic transformations
     df = df.withColumn("default", when(col("default") == "yes", 1).otherwise(0)) \
@@ -67,15 +68,17 @@ try:
            .withColumn("loan", when(col("loan") == "yes", 1).otherwise(0))
 
     # Example aggregation
-    agg_df = df.groupBy("month").agg({"balance": "avg"}).withColumnRenamed("avg(balance)", "avg_balance")
+    agg_df = df.groupBy("month", "job").agg(
+    avg("balance").alias("avg_balance"),
+    avg("duration").alias("avg_duration"))
     agg_df.show()
 
     # Convert to DynamicFrame
-    dyf = DynamicFrame.fromDF(df, glueContext, "dyf")
+    agg_dyf = DynamicFrame.fromDF(agg_df, glueContext, "dyf")
 
     # Write to Parquet in partitioned structure
     glueContext.write_dynamic_frame.from_options(
-        frame=dyf,
+        frame=agg_dyf,
         connection_type="s3",
         format="parquet",
         connection_options={
