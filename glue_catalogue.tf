@@ -9,7 +9,7 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
   table_type    = "EXTERNAL_TABLE"
 
   storage_descriptor {
-    location      = "s3://${aws_s3_bucket.curated_csv_bucket.bucket}/bank_data_parquet/"
+    location      = "s3://${aws_s3_bucket.curated_csv_bucket.bucket}/curated_data/"
     input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
     output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
     compressed    = false
