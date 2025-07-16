@@ -48,11 +48,11 @@ resource "aws_glue_catalog_table" "bank_data_parquet" {
     }
     columns {
       name = "housing"
-      type = "string"
+      type = "int"
     }
     columns {
       name = "loan"
-      type = "string"
+      type = "int"
     }
     columns {
       name = "contact"
